@@ -10,9 +10,9 @@
 
 #define SAMPLE_RATE 44100
 #define DURATION 5.0
-//#define FILENAME_FORMAT @"%0.3f-square.aif"
+#define FILENAME_FORMAT @"%0.3f-square.aif"
 //#define FILENAME_FORMAT @"%0.3f-saw.aif"
-#define FILENAME_FORMAT @"%0.3f-sine.aif"
+//#define FILENAME_FORMAT @"%0.3f-sine.aif"
 
 int main(int argc, const char * argv[]) {
     NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init];
@@ -53,16 +53,16 @@ int main(int argc, const char * argv[]) {
     while (sampleCount < maxSampleCount) {
         for (int i = 0; i < wavelengthInSamples; i++) {
             SInt16 sample;
-//            // Square
-//            if (i < wavelengthInSamples/2) {
-//                sample = CFSwapInt16HostToBig(SHRT_MAX);
-//            } else {
-//                sample = CFSwapInt16HostToBig(SHRT_MIN);
-//            }
+            // Square
+            if (i < wavelengthInSamples/2) {
+                sample = CFSwapInt16HostToBig(SHRT_MAX);
+            } else {
+                sample = CFSwapInt16HostToBig(SHRT_MIN);
+            }
 //            // Saw
-//            sample = CFSwapInt16HostToBig (((i / wavelengthInSamples) * SHRT_MAX *2) - SHRT_MAX);
-            // Sine
-            CFSwapInt16HostToBig ((SInt16) SHRT_MAX * sin (2 * M_PI * (i / wavelengthInSamples)));
+//            sample = CFSwapInt16HostToBig (((i / wavelengthInSamples) * SHRT_MAX * 2) - SHRT_MAX);
+//            // Sine
+//            CFSwapInt16HostToBig ((SInt16)SHRT_MAX * sin(2 * M_PI * (i / wavelengthInSamples)));
             
             audioErr = AudioFileWriteBytes(audioFile, false, sampleCount*2, &bytesToWrite, &sample);
             assert(audioErr == noErr);
