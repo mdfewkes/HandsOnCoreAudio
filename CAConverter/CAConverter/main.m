@@ -42,50 +42,6 @@ static void CheckError(OSStatus error, const char *operation) {
     fprintf(stderr, "Error: %s (%s)\n", operation, errorString);
 }
 
-void Convert(MyAudioConverterSettings *mySettings) {
-    // Create the audioConverter object
-    AudioConverterRef audioConverter;
-    CheckError (AudioConverterNew(&mySettings->inputFormat, &mySettings->outputFormat, &audioConverter), "AudioConveterNew failed");
-    
-    UInt32 packetsPerBuffer = 0;
-    UInt32 outputBufferSize = 32 * 1024; // 32 KB is a good starting point
-    UInt32 sizePerPacket = mySettings->inputFormat.mBytesPerPacket;
-    if (sizePerPacket == 0) {
-        UInt32 size = sizeof(sizePerPacket);
-        CheckError(AudioConverterGetProperty(audioConverter, kAudioConverterPropertyMaximumOutputPacketSize, &size, &sizePerPacket), "Couldn't get kAudioConverterPropertyMaximumOutputPacketSize");
-        
-        if (sizePerPacket > outputBufferSize) {
-            outputBufferSize = sizePerPacket;
-        }
-        packetsPerBuffer = outputBufferSize / sizePerPacket;
-        mySettings->inputFilePacketDescriptions = (AudioStreamPacketDescription*)malloc(sizeof(AudioStreamPacketDescription)* packetsPerBuffer);
-    } else {
-        packetsPerBuffer = outputBufferSize / sizePerPacket;
-    }
-    
-    UInt8 *outputBuffer = (UInt8 *)malloc(sizeof(UInt8) * outputBufferSize);
-    
-    UInt32 outputFilePacketPosition = 0;
-    while(1) {
-        AudioBufferList convertedData;
-        convertedData.mNumberBuffers = 1;
-        convertedData.mBuffers[0].mNumberChannels = mySettings->inputFormat.mChannelsPerFrame;
-        convertedData.mBuffers[0].mDataByteSize = outputBufferSize;
-        convertedData.mBuffers[0].mData = outputBuffer;
-        
-        UInt32 ioOutputDataPackets = packetsPerBuffer;
-        OSStatus error = AudioConverterFillComplexBuffer(audioConverter, MyAudioConverterCallback, mySettings, &ioOutputDataPackets, &convertedData, (mySettings->inputFilePacketDescriptions ? mySettings->inputFilePacketDescriptions : nil));
-
-        if (error || !ioOutputDataPackets) break; // This is the termination condition
-        
-        // Write the converted data to the output file
-        CheckResult(AudioFileWritePackets(mySettings->outputFile, FALSE, ioOutputDataPackets, NULL, outputFilePacketPosition / mySettings->outputFormat.mBytesPerPacket, &ioOutputDataPackets, convertedData.mBuffers[0].mData), "Couldn't write packets to file");
-        outputFilePacketPosition += (ioOutputDataPackets * mySettings->outputFormat.mBytesPerPacket);
-    }
-    
-    AudioConverterDispose(audioConverter);
-}
-
 #pragma mark converter callback function
 OSStatus MyAudioConverterCallback(AudioConverterRef inAudioConverter, UInt32 *ioDataPacketCount, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
     MyAudioConverterSettings *audioConverterSettings = (MyAudioConverterSettings *)inUserData;
@@ -127,6 +83,51 @@ OSStatus MyAudioConverterCallback(AudioConverterRef inAudioConverter, UInt32 *io
     }
     
     return result;
+}
+
+void Convert(MyAudioConverterSettings *mySettings) {
+    // Create the audioConverter object
+    AudioConverterRef audioConverter;
+    CheckError (AudioConverterNew(&mySettings->inputFormat, &mySettings->outputFormat, &audioConverter), "AudioConveterNew failed");
+    
+    UInt32 packetsPerBuffer = 0;
+    UInt32 outputBufferSize = 32 * 1024; // 32 KB is a good starting point
+    UInt32 sizePerPacket = mySettings->inputFormat.mBytesPerPacket;
+    if (sizePerPacket == 0) {
+        UInt32 size = sizeof(sizePerPacket);
+        CheckError(AudioConverterGetProperty(audioConverter, kAudioConverterPropertyMaximumOutputPacketSize, &size, &sizePerPacket), "Couldn't get kAudioConverterPropertyMaximumOutputPacketSize");
+        
+        if (sizePerPacket > outputBufferSize) {
+            outputBufferSize = sizePerPacket;
+        }
+        packetsPerBuffer = outputBufferSize / sizePerPacket;
+        mySettings->inputFilePacketDescriptions = (AudioStreamPacketDescription*)malloc(sizeof(AudioStreamPacketDescription)* packetsPerBuffer);
+    } else {
+        packetsPerBuffer = outputBufferSize / sizePerPacket;
+    }
+    
+    UInt8 *outputBuffer = (UInt8 *)malloc(sizeof(UInt8) * outputBufferSize);
+    
+    UInt32 outputFilePacketPosition = 0;
+    while(1) {
+        AudioBufferList convertedData;
+        convertedData.mNumberBuffers = 1;
+        convertedData.mBuffers[0].mNumberChannels = mySettings->inputFormat.mChannelsPerFrame;
+        convertedData.mBuffers[0].mDataByteSize = outputBufferSize;
+        convertedData.mBuffers[0].mData = outputBuffer;
+        
+        UInt32 ioOutputDataPackets = packetsPerBuffer;
+        OSStatus error;
+        error = AudioConverterFillComplexBuffer(audioConverter, MyAudioConverterCallback, mySettings, &ioOutputDataPackets, &convertedData, (mySettings->inputFilePacketDescriptions ? mySettings->inputFilePacketDescriptions : nil));
+
+        if (error || !ioOutputDataPackets) break; // This is the termination condition
+        
+        // Write the converted data to the output file
+        CheckError(AudioFileWritePackets(mySettings->outputFile, FALSE, ioOutputDataPackets, NULL, outputFilePacketPosition / mySettings->outputFormat.mBytesPerPacket, &ioOutputDataPackets, convertedData.mBuffers[0].mData), "Couldn't write packets to file");
+        outputFilePacketPosition += (ioOutputDataPackets * mySettings->outputFormat.mBytesPerPacket);
+    }
+    
+    AudioConverterDispose(audioConverter);
 }
 
 #pragma mark main function
